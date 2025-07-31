@@ -1,45 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Skill Check Calculator</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <title>Real-Time Gender Detection</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { margin:0; background:#FFE5EA; display:flex; flex-direction:column; align-items:center; font-family:sans-serif; }
+    h1 { margin:1rem; color:#fe669e; }
+    video { border:4px solid #fe669e; border-radius:8px; }
+    #result { margin:1rem; font-size:1.5rem; color:#3d2935; }
+    #status { font-style:italic; color:#777; }
+  </style>
+  <!-- 1) TensorFlow.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+  <!-- 2) face-api.js -->
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 </head>
 <body>
-  <div class="container">
-    <h1>Skill Check Calculator</h1>
-    <input type="text" id="display" disabled />
-    <div class="buttons">
-      <button onclick="press('7')">7</button>
-      <button onclick="press('8')">8</button>
-      <button onclick="press('9')">9</button>
-      <button onclick="press('/')">/</button>
-      <button onclick="press('4')">4</button>
-      <button onclick="press('5')">5</button>
-      <button onclick="press('6')">6</button>
-      <button onclick="press('*')">*</button>
-      <button onclick="press('1')">1</button>
-      <button onclick="press('2')">2</button>
-      <button onclick="press('3')">3</button>
-      <button onclick="press('-')">-</button>
-      <button onclick="press('0')">0</button>
-      <button onclick="press('.')">.</button>
-      <button onclick="calculate()">=</button>
-      <button onclick="press('+')">+</button>
-      <button onclick="clearDisplay()">C</button>
-    </div>
-  </div>
+  <h1>Real-Time Gender Detection</h1>
+  <video id="video" width="360" height="270" autoplay muted></video>
+  <div id="result">Loading models…</div>
+  <div id="status"></div>
 
-  <div class="modal" id="quizModal">
-    <div class="modal-content">
-      <h2>Quick Skill Check!</h2>
-      <p id="quizQuestion"></p>
-      <input type="text" id="quizAnswer" placeholder="Your answer" />
-      <button onclick="submitAnswer()">Submit</button>
-    </div>
-  </div>
+  <script>
+    const video = document.getElementById('video');
+    const result = document.getElementById('result');
+    const status = document.getElementById('status');
 
-  <script src="script.js"></script>
+    function setStatus(text, error = false) {
+      status.textContent = text;
+      status.style.color = error ? '#c33' : '#777';
+    }
+
+    async function loadModels() {
+      setStatus('Loading models…');
+      const MODEL_URL = './models';
+      try {
+        // Load local models from your GitHub Pages repo
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        await faceapi.nets.genderNet.loadFromUri(MODEL_URL);
+        setStatus('Models loaded');
+        startVideo();
+      } catch (e) {
+        setStatus('Model load failed', true);
+        console.error(e);
+      }
+    }
+
+    async function startVideo() {
+      setStatus('Requesting camera…');
+      try {
+        video.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
+        setStatus('Camera active');
+        runDetection();
+      } catch (e) {
+        setStatus('Camera access denied', true);
+        console.error(e);
+      }
+    }
+
+    function runDetection() {
+      result.textContent = 'Detecting…';
+      video.addEventListener('play', () => {
+        const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+        setInterval(async () => {
+          const detection = await faceapi.detectSingleFace(video, options).withGender();
+          if (detection) {
+            const gender = detection.gender.charAt(0).toUpperCase() + detection.gender.slice(1);
+            const confidence = Math.round(detection.genderProbability * 100) + '%';
+            result.textContent = `${gender} (${confidence})`;
+            status.textContent = '';
+          } else {
+            result.textContent = 'No face detected';
+            setStatus('Adjust your position');
+          }
+        }, 500);
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', loadModels);
+  </script>
 </body>
 </html>
